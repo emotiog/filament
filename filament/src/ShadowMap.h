@@ -136,8 +136,8 @@ public:
     ShaderParameters updateDirectional(FEngine& engine,
             const FScene::LightSoa& lightData, size_t index,
             filament::CameraInfo const& camera,
-            ShadowMapInfo const& shadowMapInfo, FScene const& scene,
-            SceneInfo& sceneInfo) noexcept;
+            ShadowMapInfo const& shadowMapInfo,
+            SceneInfo const& sceneInfo) noexcept;
 
     ShaderParameters updateSpot(FEngine& engine,
             const FScene::LightSoa& lightData, size_t index,
