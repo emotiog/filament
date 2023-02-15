@@ -723,6 +723,7 @@ UTILS_NOINLINE // no need to be inlined
 void RenderPass::Executor::execute(backend::DriverApi& driver,
         const Command* first, const Command* last) const noexcept {
     SYSTRACE_CALL();
+    SYSTRACE_CONTEXT();
 
     if (first != last) {
         SYSTRACE_VALUE32("commandCount", last - first);

@@ -338,6 +338,7 @@ void FView::prepareShadowing(FEngine& engine, DriverApi& driver,
 void FView::prepareLighting(FEngine& engine, FEngine::DriverApi& driver, ArenaScope& arena,
         filament::Viewport const& viewport, CameraInfo const& cameraInfo) noexcept {
     SYSTRACE_CALL();
+    SYSTRACE_CONTEXT();
 
     FScene* const scene = mScene;
     auto const& lightData = scene->getLightData();
