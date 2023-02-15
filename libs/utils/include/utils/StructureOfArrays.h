@@ -562,8 +562,10 @@ private:
         forEach([from, to](auto p) {
             using T = typename std::decay<decltype(*p)>::type;
             // note: scalar types like int/float get initialized to zero
-            for (size_t i = from; i < to; i++) {
-                new(p + i) T();
+            if constexpr (!std::is_trivially_default_constructible_v<T>) {
+                for (size_t i = from; i < to; i++) {
+                    new(p + i) T();
+                }
             }
         });
     }
@@ -571,8 +573,10 @@ private:
     void destroy_each(size_t from, size_t to) noexcept {
         forEach([from, to](auto p) {
             using T = typename std::decay<decltype(*p)>::type;
-            for (size_t i = from; i < to; i++) {
-                p[i].~T();
+            if constexpr (!std::is_trivially_destructible_v<T>) {
+                for (size_t i = from; i < to; i++) {
+                    p[i].~T();
+                }
             }
         });
     }
@@ -592,15 +596,17 @@ private:
                         reinterpret_cast<T*>(uintptr_t(b) + offsets[index]);
 
                 // for trivial cases, just call memcpy()
-                if (std::is_trivially_copyable<T>::value &&
-                    std::is_trivially_destructible<T>::value) {
+                if constexpr (std::is_trivially_copyable_v<T> &&
+                              std::is_trivially_destructible_v<T>) {
                     memcpy(arrayPointer, p, size * sizeof(T));
                 } else {
                     for (size_t i = 0; i < size; i++) {
                         // we move an element by using the in-place move-constructor
                         new(arrayPointer + i) T(std::move(p[i]));
-                        // and delete them by calling the destructor directly
-                        p[i].~T();
+                        if constexpr (!std::is_trivially_destructible_v<T>) {
+                            // and delete them by calling the destructor directly
+                            p[i].~T();
+                        }
                     }
                 }
                 index++;
