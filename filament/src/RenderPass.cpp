@@ -86,11 +86,12 @@ void RenderPass::setScissorViewport(backend::Viewport viewport) noexcept {
 }
 
 void RenderPass::appendCommands(FEngine& engine, CommandTypeFlags const commandTypeFlags) noexcept {
+    SYSTRACE_CALL();
     SYSTRACE_CONTEXT();
 
     assert_invariant(mRenderableSoa);
 
-    utils::Range<uint32_t> vr = mVisibleRenderables;
+    utils::Range<uint32_t> const vr = mVisibleRenderables;
     // trace the number of visible renderables
     SYSTRACE_VALUE32("visibleRenderables", vr.size());
     if (UTILS_UNLIKELY(vr.empty())) {
