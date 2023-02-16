@@ -76,14 +76,15 @@ ShadowMapManager::ShadowTechnique ShadowMapManager::update(FEngine& engine, FVie
     calculateTextureRequirements(engine, view, lightData);
 
     // Compute scene-dependent values shared across all shadow maps
-    ShadowMap::initSceneInfo(mSceneInfo,
-            view.getVisibleLayers(), *view.getScene(), cameraInfo.view);
+    ShadowMap::SceneInfo const info{ *view.getScene(), view.getVisibleLayers(), cameraInfo.view };
 
     shadowTechnique |= updateCascadeShadowMaps(
-            engine, view, cameraInfo, renderableData, lightData, mSceneInfo);
+            engine, view, cameraInfo, renderableData, lightData, info);
 
     shadowTechnique |= updateSpotShadowMaps(
             engine, lightData);
+
+    mSceneInfo = info;
 
     return shadowTechnique;
 }
@@ -435,7 +436,7 @@ FrameGraphId<FrameGraphTexture> ShadowMapManager::render(FEngine& engine, FrameG
 
 ShadowMapManager::ShadowTechnique ShadowMapManager::updateCascadeShadowMaps(FEngine& engine,
         FView& view, CameraInfo const& cameraInfo, FScene::RenderableSoa& renderableData,
-        FScene::LightSoa& lightData, ShadowMap::SceneInfo& sceneInfo) noexcept {
+        FScene::LightSoa& lightData, ShadowMap::SceneInfo sceneInfo) noexcept {
     FScene* scene = view.getScene();
     auto& lcm = engine.getLightManager();
 
@@ -759,7 +760,7 @@ void ShadowMapManager::preparePointShadowMap(ShadowMap& shadowMap,
     };
 
     auto shaderParameters = shadowMap.updatePoint(mEngine, lightData, lightIndex,
-            mainCameraInfo, shadowMapInfo, *view.getScene(), sceneInfo, face);
+            mainCameraInfo, shadowMapInfo, *view.getScene(), face);
 
 
     // and if we need to generate it, update all the UBO data
