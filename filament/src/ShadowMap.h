@@ -228,9 +228,6 @@ private:
             const math::mat4f& projectionViewInverse, math::float2 csNearFar = { -1.0f, 1.0f }) noexcept;
 
     static inline math::float2 computeNearFar(math::mat4f const& view,
-            Aabb const& wsShadowCastersVolume) noexcept;
-
-    static inline math::float2 computeNearFar(math::mat4f const& view,
             math::float3 const* wsVertices, size_t count) noexcept;
 
     static inline math::float4 computeBoundingSphere(

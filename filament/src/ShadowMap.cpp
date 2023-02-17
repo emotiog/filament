@@ -709,12 +709,6 @@ mat4f ShadowMap::directionalLightFrustum(float near, float far) noexcept {
 }
 
 float2 ShadowMap::computeNearFar(const mat4f& view,
-        Aabb const& wsShadowCastersVolume) noexcept {
-    const Aabb::Corners wsSceneCastersCorners = wsShadowCastersVolume.getCorners();
-    return computeNearFar(view, wsSceneCastersCorners.data(), wsSceneCastersCorners.size());
-}
-
-float2 ShadowMap::computeNearFar(const mat4f& view,
         float3 const* wsVertices, size_t count) noexcept {
     float2 nearFar = { std::numeric_limits<float>::lowest(), std::numeric_limits<float>::max() };
     for (size_t i = 0; i < count; i++) {
@@ -1160,6 +1154,9 @@ ShadowMap::SceneInfo::SceneInfo(
         : vsNearFar(std::numeric_limits<float>::lowest(), std::numeric_limits<float>::max()),
           visibleLayers(visibleLayers) {
 
+    // the code below only works with affine transforms
+    assert_invariant(transpose(viewMatrix)[3] == float4(0, 0, 0, 1));
+
     // We assume the light is at the origin to compute the SceneInfo. This is consumed later by
     // computeShadowCameraDirectional() which takes this into account.
 
@@ -1174,21 +1171,25 @@ ShadowMap::SceneInfo::SceneInfo(
             [&](Aabb receiver, Culler::result_type) {
                 wsShadowReceiversVolume.min = min(wsShadowReceiversVolume.min, receiver.min);
                 wsShadowReceiversVolume.max = max(wsShadowReceiversVolume.max, receiver.max);
-                float2 const nf = ShadowMap::computeNearFar(viewMatrix, receiver);
-                vsNearFar.x = std::max(vsNearFar.x, nf.x);
-                vsNearFar.y = std::min(vsNearFar.y, nf.y);
+                auto r = Aabb::transform(viewMatrix.upperLeft(), viewMatrix[3].xyz, receiver);
+                vsNearFar.x = std::max(vsNearFar.x, r.max.z);
+                vsNearFar.y = std::min(vsNearFar.y, r.min.z);
             }
     );
 }
 
 void ShadowMap::updateSceneInfoDirectional(mat4f const& Mv, FScene const& scene,
         SceneInfo& sceneInfo) {
+
+    // the code below only works with affine transforms
+    assert_invariant(transpose(Mv)[3] == float4(0, 0, 0, 1));
+
     sceneInfo.lsNearFar = { std::numeric_limits<float>::lowest(), std::numeric_limits<float>::max() };
     visitScene(scene, sceneInfo.visibleLayers,
             [&](Aabb caster, Culler::result_type) {
-                float2 const nf = ShadowMap::computeNearFar(Mv, caster);
-                sceneInfo.lsNearFar.x = std::max(sceneInfo.lsNearFar.x, nf.x);  // near
-                sceneInfo.lsNearFar.y = std::min(sceneInfo.lsNearFar.y, nf.y);  // far
+                auto r = Aabb::transform(Mv.upperLeft(), Mv[3].xyz, caster);
+                sceneInfo.lsNearFar.x = std::max(sceneInfo.lsNearFar.x, r.max.z);  // near
+                sceneInfo.lsNearFar.y = std::min(sceneInfo.lsNearFar.y, r.min.z);  // far
             },
             [&](Aabb receiver, Culler::result_type) {
             }
@@ -1197,13 +1198,17 @@ void ShadowMap::updateSceneInfoDirectional(mat4f const& Mv, FScene const& scene,
 
 void ShadowMap::updateSceneInfoSpot(mat4f const& Mv, FScene const& scene,
         SceneInfo& sceneInfo) {
+
+    // the code below only works with affine transforms
+    assert_invariant(transpose(Mv)[3] == float4(0, 0, 0, 1));
+
     sceneInfo.lsNearFar = { std::numeric_limits<float>::lowest(), std::numeric_limits<float>::max() };
     visitScene(scene, sceneInfo.visibleLayers,
             [&](Aabb caster, Culler::result_type mask) {
                 if (mask & VISIBLE_DYN_SHADOW_RENDERABLE) {
-                    float2 const nf = ShadowMap::computeNearFar(Mv, caster);
-                    sceneInfo.lsNearFar.x = std::max(sceneInfo.lsNearFar.x, nf.x);  // near
-                    sceneInfo.lsNearFar.y = std::min(sceneInfo.lsNearFar.y, nf.y);  // far
+                    auto r = Aabb::transform(Mv.upperLeft(), Mv[3].xyz, caster);
+                    sceneInfo.lsNearFar.x = std::max(sceneInfo.lsNearFar.x, r.max.z);  // near
+                    sceneInfo.lsNearFar.y = std::min(sceneInfo.lsNearFar.y, r.min.z);  // far
                 }
             },
             [&](Aabb receiver, Culler::result_type) {
