@@ -8,7 +8,6 @@ dist
 dist-*
 toolchains
 filament/docs/html/**
-.vscode
 *tmp*.png
 civetweb.txt
 /TAGS
