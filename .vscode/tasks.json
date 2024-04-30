@@ -1,0 +1,32 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+    {
+        "label": "build Filament Debug",
+        "type": "shell",
+        "command": "./build.sh",
+        "options": {
+            "cwd": "${workspaceFolder}"
+        },
+        "args": ["-l", "-p", "desktop", "-i" ,"debug"],
+        "group": {
+            "kind": "build",
+            "isDefault": true
+        },
+        "detail": "build filament in Bulb with debug flag"
+    },
+    {
+        "label": "build Filament Release",
+        "type": "shell",
+        "command": "./build.sh",
+        "options": {
+            "cwd": "${workspaceFolder}"
+        },
+        "args": ["-l", "-p", "desktop", "-i" ,"release"],
+        "group": {
+            "kind": "build",
+            "isDefault": false
+        },
+        "detail": "build filament in Bulb"
+    }]
+}
