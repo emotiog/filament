@@ -19,6 +19,7 @@
 #include <filament/IndexBuffer.h>
 #include <filament/LightManager.h>
 #include <filament/Material.h>
+#include <filamat/MaterialBuilder.h>
 #include <filament/RenderableManager.h>
 #include <filament/Renderer.h>
 #include <filament/RenderTarget.h>
@@ -59,12 +60,54 @@ struct App {
     utils::Entity reflectedMonkey;
     mat4f transform;
 
-    Texture* offscreenColorTexture = nullptr;
-    Texture* offscreenDepthTexture = nullptr;
-    RenderTarget* offscreenRenderTarget = nullptr;
-    View* offscreenView = nullptr;
-    Scene* offscreenScene = nullptr;
-    Camera* offscreenCamera = nullptr;
+    static constexpr size_t OFFSCREEN = 2;
+    struct OffScreen
+    {
+        Texture*        colorTexture    = nullptr;
+        Texture*        depthTexture    = nullptr;
+        RenderTarget*   renderTarget    = nullptr;
+        View*           view            = nullptr;
+        Scene*          scene           = nullptr;
+        Camera*         camera          = nullptr;
+        Material*       material        = nullptr;
+        MaterialInstance* mi            = nullptr;
+        utils::Entity   renderable;
+
+        VertexBuffer*   quadVb          = nullptr;
+        IndexBuffer*    quadIb          = nullptr;
+
+        void init(Engine* engine, const Viewport& vp, utils::EntityManager& em)
+        {
+            view  = engine->createView();
+            scene = engine->createScene();
+            view->setScene(scene);
+            view->setPostProcessingEnabled(false);
+            colorTexture = Texture::Builder()
+                .width(vp.width).height(vp.height).levels(1)
+                .usage(Texture::Usage::COLOR_ATTACHMENT | Texture::Usage::SAMPLEABLE)
+                .format(Texture::InternalFormat::RGBA8).build(*engine);
+            depthTexture = Texture::Builder()
+                .width(vp.width).height(vp.height).levels(1)
+                // .usage(Texture::Usage::DEPTH_ATTACHMENT)
+                .usage(Texture::Usage::DEPTH_ATTACHMENT | Texture::Usage::SAMPLEABLE)
+                .format(Texture::InternalFormat::DEPTH24).build(*engine);
+            renderTarget = RenderTarget::Builder()
+                .texture(RenderTarget::AttachmentPoint::COLOR, colorTexture)
+                .texture(RenderTarget::AttachmentPoint::DEPTH, depthTexture)
+                .build(*engine);
+            view->setRenderTarget(renderTarget);
+            view->setViewport({0, 0, vp.width, vp.height});
+            camera = engine->createCamera(em.create());
+            view->setCamera(camera);
+        };
+    } offscreen[OFFSCREEN] = {};
+
+    // Texture* offscreenColorTexture = nullptr;
+    // Texture* offscreenDepthTexture = nullptr;
+    // RenderTarget* offscreenRenderTarget = nullptr;
+    // View* offscreenView = nullptr;
+    // Scene* offscreenScene = nullptr;
+    // Camera* offscreenCamera = nullptr;
 
     enum class ReflectionMode {
         RENDERABLES,
@@ -74,11 +117,11 @@ struct App {
     ReflectionMode mode = ReflectionMode::CAMERA;
     Config config;
 
-    utils::Entity quadEntity;
-    VertexBuffer* quadVb = nullptr;
-    IndexBuffer* quadIb = nullptr;
-    Material* quadMaterial = nullptr;
-    MaterialInstance* quadMatInstance = nullptr;
+    // utils::Entity quadEntity;
+    // VertexBuffer* quadVb = nullptr;
+    // IndexBuffer* quadIb = nullptr;
+    // Material* quadMaterial = nullptr;
+    // MaterialInstance* quadMatInstance = nullptr;
 
     float3 quadCenter;
     float3 quadNormal;
@@ -108,14 +151,20 @@ static mat4f reflectionMatrix(float4 plane) {
 static void setReflectionMode(App& app, App::ReflectionMode mode) {
     switch (mode) {
     case App::ReflectionMode::RENDERABLES:
-        app.offscreenScene->addEntity(app.reflectedMonkey);
-        app.offscreenScene->remove(app.monkeyMesh.renderable);
-        app.offscreenView->setFrontFaceWindingInverted(false);
+        // app.offscreenScene->addEntity(app.reflectedMonkey);
+        // app.offscreenScene->remove(app.monkeyMesh.renderable);
+        // app.offscreenView->setFrontFaceWindingInverted(false);
+        app.offscreen[0].scene->addEntity(app.reflectedMonkey);
+        app.offscreen[0].scene->remove(app.monkeyMesh.renderable);
+        app.offscreen[0].view->setFrontFaceWindingInverted(false);
         break;
     case App::ReflectionMode::CAMERA:
-        app.offscreenScene->addEntity(app.monkeyMesh.renderable);
-        app.offscreenScene->remove(app.reflectedMonkey);
-        app.offscreenView->setFrontFaceWindingInverted(true);
+        // app.offscreenScene->addEntity(app.monkeyMesh.renderable);
+        // app.offscreenScene->remove(app.reflectedMonkey);
+        // app.offscreenView->setFrontFaceWindingInverted(true);
+        app.offscreen[0].scene->addEntity(app.monkeyMesh.renderable);
+        app.offscreen[0].scene->remove(app.reflectedMonkey);
+        app.offscreen[0].view->setFrontFaceWindingInverted(true);
         break;
     }
     app.mode = mode;
@@ -198,27 +247,77 @@ int main(int argc, char** argv) {
         auto vp = view->getViewport();
 
         // Instantiate offscreen render target.
-        app.offscreenView = engine->createView();
-        app.offscreenScene = engine->createScene();
-        app.offscreenView->setScene(app.offscreenScene);
-        app.offscreenView->setPostProcessingEnabled(false);
-        app.offscreenColorTexture = Texture::Builder()
-            .width(vp.width).height(vp.height).levels(1)
-            .usage(Texture::Usage::COLOR_ATTACHMENT | Texture::Usage::SAMPLEABLE)
-            .format(Texture::InternalFormat::RGBA8).build(*engine);
-        app.offscreenDepthTexture = Texture::Builder()
-            .width(vp.width).height(vp.height).levels(1)
-            .usage(Texture::Usage::DEPTH_ATTACHMENT)
-            .format(Texture::InternalFormat::DEPTH24).build(*engine);
-        app.offscreenRenderTarget = RenderTarget::Builder()
-            .texture(RenderTarget::AttachmentPoint::COLOR, app.offscreenColorTexture)
-            .texture(RenderTarget::AttachmentPoint::DEPTH, app.offscreenDepthTexture)
-            .build(*engine);
-        app.offscreenView->setRenderTarget(app.offscreenRenderTarget);
-        app.offscreenView->setViewport({0, 0, vp.width, vp.height});
-        app.offscreenCamera = engine->createCamera(em.create());
-        app.offscreenView->setCamera(app.offscreenCamera);
-        FilamentApp::get().addOffscreenView(app.offscreenView);
+        // app.offscreenView = engine->createView();
+        // app.offscreenScene = engine->createScene();
+        // app.offscreenView->setScene(app.offscreenScene);
+        // app.offscreenView->setPostProcessingEnabled(false);
+        // app.offscreenColorTexture = Texture::Builder()
+        //     .width(vp.width).height(vp.height).levels(1)
+        //     .usage(Texture::Usage::COLOR_ATTACHMENT | Texture::Usage::SAMPLEABLE)
+        //     .format(Texture::InternalFormat::RGBA8).build(*engine);
+        // app.offscreenDepthTexture = Texture::Builder()
+        //     .width(vp.width).height(vp.height).levels(1)
+        //     // .usage(Texture::Usage::DEPTH_ATTACHMENT)
+        //     .usage(Texture::Usage::DEPTH_ATTACHMENT | Texture::Usage::SAMPLEABLE)
+        //     .format(Texture::InternalFormat::DEPTH24).build(*engine);
+        // app.offscreenRenderTarget = RenderTarget::Builder()
+        //     .texture(RenderTarget::AttachmentPoint::COLOR, app.offscreenColorTexture)
+        //     .texture(RenderTarget::AttachmentPoint::DEPTH, app.offscreenDepthTexture)
+        //     .build(*engine);
+        // app.offscreenView->setRenderTarget(app.offscreenRenderTarget);
+        // app.offscreenView->setViewport({0, 0, vp.width, vp.height});
+        // app.offscreenCamera = engine->createCamera(em.create());
+        // app.offscreenView->setCamera(app.offscreenCamera);
+        // FilamentApp::get().addOffscreenView(app.offscreenView);
+        for (auto i = 0; i < App::OFFSCREEN; ++i)
+        {
+            app.offscreen[i].init(engine, vp, em);
+            FilamentApp::get().addOffscreenView(app.offscreen[i].view);
+        }
+
+        filamat::MaterialBuilder::init();
+        filamat::MaterialBuilder builder;
+            builder.name("unlit_quad")
+            .targetApi(filamat::MaterialBuilder::TargetApi::ALL)
+            .require(VertexAttribute::UV0)
+            .parameter("albedo", filamat::MaterialBuilder::SamplerType::SAMPLER_2D)
+            // .materialVertex(R"SHADER(
+            //     void materialVertex(inout MaterialVertexInputs material) {
+            //         float4 v = getWorldFromClipMatrix() * mesh_position;
+            //         // if (abs(v.w) < MEDIUMP_FLT_MIN) {
+            //         //     v.w = v.w < 0.0 ? -MEDIUMP_FLT_MIN : MEDIUMP_FLT_MIN;
+            //         // }
+            //         // v *= (1.0/v.w);
+            //         material.worldPosition = v;
+            //     }
+            // )SHADER")
+            .material(R"SHADER(
+                void material(inout MaterialInputs material) {
+                    prepareMaterial(material);
+                    vec2 uv = getResolution().zw * gl_FragCoord.xy;
+                    highp float depth = texture(materialParams_albedo, uv).r;
+                    // material.baseColor.rgb = texture(materialParams_albedo, uv).rgb;
+                    material.baseColor.rgb = sign(vec3(depth));
+                    material.baseColor.a   = 1.0;
+
+                    // vec2 uv = getUV0();
+                    // uv.y = 1.0 - uv.y;
+
+                    //         float4  srcColor    = texture(materialParams_albedo,  uv);
+                    //         float4  dstColor    = texture(materialParams_dstColor,  uv);
+                    // highp   float   srcDepth    = sampleDepthLinear(materialParams_srcDepth,    uv, 0.0);
+                    // highp   float   dstDepth    = sampleDepthLinear(materialParams_dstDepth,    uv, 0.0);
+
+                    // float alpha = fragColor.r == 0.0f ? 0.0f : (fragColor.g == 0.0f ? 0.0f : (fragColor.b == 0.0f ? 0.0f : 1.0f));
+                    // material.baseColor  = mix (vec4(0.0), fragColor, alpha);//sign(fragColor.a));
+
+                    // material.baseColor = vec4(srcColor.rgb, 1.0);
+                }
+            )SHADER")
+            .shading(Shading::UNLIT);
+
+        filamat::Package pkg = builder.build(engine->getJobSystem());
+        assert(pkg.isValid());
 
         // Position and orient the mirror in an interesting way.
         float3 c = app.quadCenter = {-2, 0, -5};
@@ -233,42 +332,118 @@ int main(int argc, char** argv) {
         kQuadVertices[2].position = c - u + v;
         kQuadVertices[3].position = c + u + v;
 
+        c = {2, 0, -5};
+        static Vertex kQuadVertices2[4] = { {{}, {1, 0}}, {{}, {0, 0}}, {{}, {1, 1}}, {{}, {0, 1}} };
+        kQuadVertices2[0].position = c - u - v;
+        kQuadVertices2[1].position = c + u - v;
+        kQuadVertices2[2].position = c - u + v;
+        kQuadVertices2[3].position = c + u + v;
+
         // Create quad vertex buffer.
         static_assert(sizeof(Vertex) == 20, "Strange vertex size.");
-        app.quadVb = VertexBuffer::Builder()
+        // app.quadVb = VertexBuffer::Builder()
+        //         .vertexCount(4)
+        //         .bufferCount(1)
+        //         .attribute(VertexAttribute::POSITION, 0, VertexBuffer::AttributeType::FLOAT3, 0, 20)
+        //         .attribute(VertexAttribute::UV0, 0, VertexBuffer::AttributeType::FLOAT2, 12, 20)
+        //         .build(*engine);
+        // app.quadVb->setBufferAt(*engine, 0,
+        //         VertexBuffer::BufferDescriptor(kQuadVertices, 80, nullptr));
+        app.offscreen[0].quadVb = VertexBuffer::Builder()
                 .vertexCount(4)
                 .bufferCount(1)
                 .attribute(VertexAttribute::POSITION, 0, VertexBuffer::AttributeType::FLOAT3, 0, 20)
                 .attribute(VertexAttribute::UV0, 0, VertexBuffer::AttributeType::FLOAT2, 12, 20)
                 .build(*engine);
-        app.quadVb->setBufferAt(*engine, 0,
+        app.offscreen[0].quadVb->setBufferAt(*engine, 0,
                 VertexBuffer::BufferDescriptor(kQuadVertices, 80, nullptr));
 
+        if (App::OFFSCREEN >= 2)
+        {
+            app.offscreen[1].quadVb = VertexBuffer::Builder()
+                    .vertexCount(4)
+                    .bufferCount(1)
+                    .attribute(VertexAttribute::POSITION, 0, VertexBuffer::AttributeType::FLOAT3, 0, 20)
+                    .attribute(VertexAttribute::UV0, 0, VertexBuffer::AttributeType::FLOAT2, 12, 20)
+                    .build(*engine);
+            app.offscreen[1].quadVb->setBufferAt(*engine, 0,
+                    VertexBuffer::BufferDescriptor(kQuadVertices2, 80, nullptr));
+        }
         // Create quad index buffer.
         static constexpr uint16_t kQuadIndices[6] = { 0, 1, 2, 3, 2, 1 };
-        app.quadIb = IndexBuffer::Builder()
-                .indexCount(6)
-                .bufferType(IndexBuffer::IndexType::USHORT)
-                .build(*engine);
-        app.quadIb->setBuffer(*engine, IndexBuffer::BufferDescriptor(kQuadIndices, 12, nullptr));
+        // app.quadIb = IndexBuffer::Builder()
+        //         .indexCount(6)
+        //         .bufferType(IndexBuffer::IndexType::USHORT)
+        //         .build(*engine);
+        // app.quadIb->setBuffer(*engine, IndexBuffer::BufferDescriptor(kQuadIndices, 12, nullptr));
+        for (auto i = 0; i < App::OFFSCREEN; ++i)
+        {
+            app.offscreen[i].quadIb = IndexBuffer::Builder()
+                    .indexCount(6)
+                    .bufferType(IndexBuffer::IndexType::USHORT)
+                    .build(*engine);
+            app.offscreen[i].quadIb->setBuffer(*engine, IndexBuffer::BufferDescriptor(kQuadIndices, 12, nullptr));
+        }
 
         // Create quad material and renderable.
-        app.quadMaterial = Material::Builder()
-                .package(RESOURCES_MIRROR_DATA, RESOURCES_MIRROR_SIZE)
-                .build(*engine);
-        app.quadMatInstance = app.quadMaterial->createInstance();
+        // app.quadMaterial = Material::Builder()
+                // .package(RESOURCES_MIRROR_DATA, RESOURCES_MIRROR_SIZE)
+                // .build(*engine);
+        // app.quadMatInstance = app.quadMaterial->createInstance();
         TextureSampler sampler(TextureSampler::MinFilter::LINEAR, TextureSampler::MagFilter::LINEAR);
-        app.quadMatInstance->setParameter("albedo", app.offscreenColorTexture, sampler);
-        app.quadEntity = em.create();
+        sampler.setCompareMode(TextureSampler::CompareMode::COMPARE_TO_TEXTURE);
+        // app.quadMatInstance->setParameter("albedo", app.offscreenColorTexture, sampler);
+        // app.quadMatInstance->setParameter("albedo", app.offscreenDepthTexture, sampler);
+        // app.quadMatInstance->setParameter("albedo", app.offscreen[0].depthTexture, sampler);
+        // app.quadEntity = em.create();
+
+        app.offscreen[0].material = Material::Builder()
+                .package(RESOURCES_MIRROR_DATA, RESOURCES_MIRROR_SIZE)
+                // .package(pkg.getData(), pkg.getSize())
+                .build(*engine);
+        app.offscreen[0].mi = app.offscreen[0].material->createInstance();
+        app.offscreen[0].mi->setParameter("albedo", app.offscreen[0].colorTexture, sampler);
+        app.offscreen[0].renderable = em.create();
         RenderableManager::Builder(1)
                 .boundingBox({{ -1, -1, -1 }, { 1, 1, 1 }})
-                .material(0, app.quadMatInstance)
-                .geometry(0, RenderableManager::PrimitiveType::TRIANGLES, app.quadVb, app.quadIb, 0, 6)
+                // .material(0, app.quadMatInstance)
+                .material(0, app.offscreen[0].mi)
+                // .geometry(0, RenderableManager::PrimitiveType::TRIANGLES, app.quadVb, app.quadIb, 0, 6)
+                .geometry(0, RenderableManager::PrimitiveType::TRIANGLES, app.offscreen[0].quadVb, app.offscreen[0].quadIb, 0, 6)
                 .culling(false)
                 .receiveShadows(false)
                 .castShadows(false)
-                .build(*engine, app.quadEntity);
-        scene->addEntity(app.quadEntity);
+                // .build(*engine, app.quadEntity);
+                .build(*engine, app.offscreen[0].renderable);
+        // scene->addEntity(app.quadEntity);
+        // if (App::OFFSCREEN == 1)
+            scene->addEntity(app.offscreen[0].renderable);
+        // else
+        // app.offscreen[1].scene->addEntity(app.offscreen[0].renderable);
+
+        if (App::OFFSCREEN >= 2)
+        {
+            app.offscreen[1].material = Material::Builder()
+                    // .package(RESOURCES_MIRROR_DATA, RESOURCES_MIRROR_SIZE)
+                    .package(pkg.getData(), pkg.getSize())
+                    .build(*engine);
+            app.offscreen[1].mi = app.offscreen[1].material->createInstance();
+            app.offscreen[1].mi->setParameter("albedo", app.offscreen[1].depthTexture, sampler);
+            app.offscreen[1].renderable = em.create();
+            RenderableManager::Builder(1)
+                    .boundingBox({{ -1, -1, -1 }, { 1, 1, 1 }})
+                    // .material(0, app.quadMatInstance)
+                    .material(0, app.offscreen[1].mi)
+                    // .geometry(0, RenderableManager::PrimitiveType::TRIANGLES, app.quadVb, app.quadIb, 0, 6)
+                    .geometry(0, RenderableManager::PrimitiveType::TRIANGLES, app.offscreen[1].quadVb, app.offscreen[1].quadIb, 0, 6)
+                    .culling(false)
+                    .receiveShadows(false)
+                    .castShadows(false)
+                    // .build(*engine, app.quadEntity);
+                    .build(*engine, app.offscreen[1].renderable);
+            // scene->addEntity(app.quadEntity);
+            scene->addEntity(app.offscreen[1].renderable);
+        }
 
         // Instantiate mesh material.
         app.meshMaterial = Material::Builder()
@@ -308,37 +483,56 @@ int main(int argc, char** argv) {
                 .castShadows(false)
                 .build(*engine, app.lightEntity);
         scene->addEntity(app.lightEntity);
-        app.offscreenScene->addEntity(app.lightEntity);
+        // app.offscreenScene->addEntity(app.lightEntity);
+        app.offscreen[0].scene->addEntity(app.lightEntity);
     };
 
     auto cleanup = [&app](Engine* engine, View*, Scene*) {
 
         auto& em = utils::EntityManager::get();
-        auto camera = app.offscreenCamera->getEntity();
-        engine->destroyCameraComponent(camera);
-        em.destroy(camera);
+        // auto camera = app.offscreenCamera->getEntity();
+        for (auto i = 0; i < App::OFFSCREEN; i++)
+        {
+            auto camera = app.offscreen[i].camera->getEntity();
+            engine->destroyCameraComponent(camera);
+            em.destroy(camera);
+        }
 
         engine->destroy(app.reflectedMonkey);
         engine->destroy(app.lightEntity);
-        engine->destroy(app.quadEntity);
+        // engine->destroy(app.quadEntity);
         engine->destroy(app.meshMatInstance);
         engine->destroy(app.meshMaterial);
         engine->destroy(app.monkeyMesh.renderable);
         engine->destroy(app.monkeyMesh.vertexBuffer);
         engine->destroy(app.monkeyMesh.indexBuffer);
-        engine->destroy(app.offscreenColorTexture);
-        engine->destroy(app.offscreenDepthTexture);
-        engine->destroy(app.offscreenRenderTarget);
-        engine->destroy(app.offscreenScene);
-        engine->destroy(app.offscreenView);
-        engine->destroy(app.quadVb);
-        engine->destroy(app.quadIb);
-        engine->destroy(app.quadMatInstance);
-        engine->destroy(app.quadMaterial);
+        // engine->destroy(app.offscreenColorTexture);
+        // engine->destroy(app.offscreenDepthTexture);
+        // engine->destroy(app.offscreenRenderTarget);
+        // engine->destroy(app.offscreenScene);
+        // engine->destroy(app.offscreenView);
+        for (auto i = 0; i < App::OFFSCREEN; i++)
+        {
+            engine->destroy(app.offscreen[i].renderable);
+            engine->destroy(app.offscreen[i].colorTexture);
+            engine->destroy(app.offscreen[i].depthTexture);
+            engine->destroy(app.offscreen[i].renderTarget);
+            engine->destroy(app.offscreen[i].scene);
+            engine->destroy(app.offscreen[i].view);
+            engine->destroy(app.offscreen[i].quadVb);
+            engine->destroy(app.offscreen[i].quadIb);
+            engine->destroy(app.offscreen[i].mi);
+            engine->destroy(app.offscreen[i].material);
+        }
+        // engine->destroy(app.quadVb);
+        // engine->destroy(app.quadIb);
+        // engine->destroy(app.quadMatInstance);
+        // engine->destroy(app.quadMaterial);
+        filamat::MaterialBuilder::shutdown();
     };
 
     auto preRender = [&app](Engine*, View*, Scene*, Renderer* renderer) {
-        renderer->setClearOptions({.clearColor = {0.1,0.2,0.4,1.0}, .clear = true});
+        renderer->setClearOptions({.clearColor = {0.1,0.2,0.4,1.0}, .clear = false, .discard = false});
     };
 
     FilamentApp::get().animate([&app](Engine* engine, View* view, double now) {
@@ -360,17 +554,41 @@ int main(int argc, char** argv) {
         const auto model = camera.getModelMatrix();
         const auto renderingProjection = camera.getProjectionMatrix();
         const auto cullingProjection = camera.getCullingProjectionMatrix();
-        app.offscreenCamera->setCustomProjection(renderingProjection, cullingProjection,
+        // app.offscreenCamera->setCustomProjection(renderingProjection, cullingProjection,
+        //         camera.getNear(), camera.getCullingFar());
+        // switch (app.mode) {
+        //     case App::ReflectionMode::RENDERABLES:
+        //         tcm.setTransform(tcm.getInstance(app.reflectedMonkey), reflection * xform);
+        //         app.offscreenCamera->setModelMatrix(model);
+        //         break;
+        //     case App::ReflectionMode::CAMERA:
+        //         app.offscreenCamera->setModelMatrix(reflection * model);
+        //         break;
+        // }
+
+        tcm.setTransform(tcm.getInstance(app.reflectedMonkey), reflection * xform);
+        for (auto i = 0; i < App::OFFSCREEN; ++i)
+        {
+            app.offscreen[i].camera->setCustomProjection(renderingProjection, cullingProjection,
                 camera.getNear(), camera.getCullingFar());
-        switch (app.mode) {
-            case App::ReflectionMode::RENDERABLES:
-                tcm.setTransform(tcm.getInstance(app.reflectedMonkey), reflection * xform);
-                app.offscreenCamera->setModelMatrix(model);
-                break;
-            case App::ReflectionMode::CAMERA:
-                app.offscreenCamera->setModelMatrix(reflection * model);
-                break;
+
+            switch (app.mode) {
+                case App::ReflectionMode::RENDERABLES:
+                    app.offscreen[i].camera->setModelMatrix(model);
+                    break;
+                case App::ReflectionMode::CAMERA:
+                    app.offscreen[i].camera->setModelMatrix(reflection * model);
+                    break;
+            }
         }
+        // switch (app.mode) {
+        //     case App::ReflectionMode::RENDERABLES:
+        //         tcm.setTransform(tcm.getInstance(app.reflectedMonkey), reflection * xform);
+        //         app.offscreenCamera->setModelMatrix(model);
+        //         break;
+        //     case App::ReflectionMode::CAMERA:
+        //         app.offscreenCamera->setModelMatrix(reflection * model);
+        //         break;
     });
 
     FilamentApp::get().run(app.config, setup, cleanup, FilamentApp::ImGuiCallback(), preRender);
