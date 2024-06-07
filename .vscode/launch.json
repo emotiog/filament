@@ -7,6 +7,14 @@
         {
             "type": "lldb",
             "request": "launch",
+            "name": "hello_triangle",
+            "program": "${workspaceFolder}/out/cmake-debug/samples/hellotriangle",
+            "args": ["/Users/junsang/Downloads/pikachu.jpg"],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
             "name": "gltf_viewer",
             "program": "${workspaceFolder}/out/debug/filament/bin/gltf_viewer",
             "args": [],
@@ -17,7 +25,23 @@
             "request": "launch",
             "name": "rendertarget",
             "program": "${workspaceFolder}/out/cmake-debug/samples/rendertarget",
-            "args": ["-m", "renderables"],
+            "args": ["-m", "renderables", "-a", "opengl"],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "image_viewer",
+            "program": "${workspaceFolder}/out/cmake-debug/samples/image_viewer",
+            "args": ["/Users/junsang/Downloads/pikachu.jpg"],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "hello_skinning",
+            "program": "${workspaceFolder}/out/cmake-debug/samples/helloskinning",
+            "args": ["/Users/junsang/Downloads/pikachu.jpg"],
             "cwd": "${workspaceFolder}"
         }
     ]
